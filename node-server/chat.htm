@@ -1,6 +1,6 @@
 <html>
    <head>
-      <script src="http://front.pornhub.pmalto.nayul-tubesdev.na.manwin.local:1111/socket.io/socket.io.js"></script>
+      <script src="socket.io.js"></script>
       <script src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
       <script>
          
@@ -8,7 +8,7 @@
 			return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null;
 		}
       
-		var socket = io.connect('http://front.pornhub.pmalto.nayul-tubesdev.na.manwin.local:1111');
+		var socket = io.connect('127.0.0.1:1111');
         
 		var __name = '';
         var __users = new Array();
