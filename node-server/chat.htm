@@ -1,0 +1,287 @@
+<html>
+   <head>
+      <script src="http://front.pornhub.pmalto.nayul-tubesdev.na.manwin.local:1111/socket.io/socket.io.js"></script>
+      <script src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
+      <script>
+         
+		function getURLParameter(name) {
+			return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null;
+		}
+      
+		var socket = io.connect('http://front.pornhub.pmalto.nayul-tubesdev.na.manwin.local:1111');
+        
+		var __name = '';
+        var __users = new Array();
+        var __usersBanned = new Array();
+        var __usersBannedBy = new Array();
+        var __userId = 0;
+        var __userName = '';
+        var __debugMode = 1;
+
+		$(document).ready(function(){
+			//stop server
+        	//socket.emit('serverStop');
+        	
+        	//TODO: check if user did not disable chat by cookie
+			//------
+        	
+			//check if user has already chat enable
+			__userId = readCookie('chat-userId');
+            sendLog('user id from cookie: ' + __userId);
+
+         	// + register current user's page
+         	// + map current sockets's id to userId
+        	socket.emit('serverStart', __userId);
+
+            //get active chats
+            socket.emit('serverGetActiveChats');
+         });
+         
+         socket.on('clientSetActiveChats', function (users) {
+            sendLog('clientSetActiveChats() called');
+            if(users !== false) {
+                users.forEach(function(user) {
+        	        addChat(user.id, user.name);
+           	    });
+            }
+         });
+
+         // process first response from chat server
+		socket.on('clientRegistration', function (isServerReloaded) {
+
+            sendLog('clientRegistration() called');
+
+			//check if chat server has been reloaded and can not recognize userId
+			if(isServerReloaded == true) {
+				__userId = null;
+			} else {
+        		//get user id from cookie
+				__userId = readCookie('chat-userId');
+			}
+        	 
+			//new user
+			if(__userId == null) {
+				
+				//TODO: replace with normal form
+				//----------------
+				while (__userName == '') {
+					__userName = prompt("What's your name?","");
+				}
+				
+				//send userName to chat server
+				//socketID will be used as userID for all future requests
+				socket.emit('serverRegistration', __userName);
+				
+				//register current page by vkey
+				//TODO: make it work with different pages
+				//----------------
+				key = 'vkey:' + getURLParameter('vkey');
+				socket.emit('serverAddPageId', key );
+			} else {
+				//var key = 'vkey:' + getURLParameter('vkey');
+				var key = getURLParameter('vkey');
+				socket.emit('serverMapSocket', __userId);
+				socket.emit('serverAddPageId', key );
+			} 
+        	 
+		});
+         
+		//process server's response after user's registration
+		socket.on('clientSetUserId', function (user_id) {
+            sendLog('clientSetUserId() called');
+			writeCookie('chat-userId', user_id, days = 1);
+			__userId = user_id;
+		});
+         
+		//IS NOT USED???
+		/*
+		socket.on('refreshUserDetails', function (details) {
+			__userName = details.userName;
+			$("#userName").append(__userName + ' : ' + __userId);
+		});
+		*/
+		
+		socket.on('clientGetMessage', function (data) {
+            sendLog('clientGetMessage() called');
+
+            //user's message
+			if(__userId == data.user_from) {	
+				//no such chat room on current page
+				if($("#chatMessages_" + data.user_to).length == 0) {
+					//create room
+					addChat(data.user_to, __users[data.user_to]);
+				}
+				$("#chatMessages_" + data.user_to).append(data.msg + "<br/>");
+				
+			} else { 
+			//somebody else message
+				//no such chat room
+				if($("#chatMessages_" + data.user_from).length == 0) {
+					//create room
+					addChat(data.user_from, __users[data.user_from]);
+				}
+				//push message to chat room
+				$("#chatMessages_" + data.user_from).append(data.msg + "<br/>");
+			}
+		});
+         
+		//update list of available users
+		socket.on('clientSetUsersList', function (usersList) {
+            sendLog('clientSetUsersList() called');
+            $("p#user_list").empty();
+			__users = [];
+			//usersList is array of json objects
+			usersList.forEach(function(user) {
+				//do not add current user to list
+				if(user.id != __userId) {
+					//TODO: remove inline js
+					$("p#user_list").append("<br /><div onClick=\"addChat('" + user.id + "', '" + user.name + "');\">" + user.id + ': ' + user.name);
+				}
+				//global array
+				__users[user.id] = user.name;
+			});
+		});
+        
+		//update list of banned users, current user can not sent/receive message from this users
+		socket.on('clientSetBannedList', function (usersList) {
+            sendLog('clientSetBannedList() called');
+            $("p#banned_user_list").empty();
+			//usersList is array of json objects
+			usersList.forEach(function(userId) {
+				//if user is banned - it's possble to unban it
+				//TODO: remove inline js"
+				if(__users[userId] !== undefined) {
+					$("p#banned_user_list").append("<br /><div onClick=\"unBanUser('" + userId + "', '" + __users[userId] + "');\">" + __userId + ': ' + __users[__userId] + "</div>");
+					__usersBanned.push(userId);
+				}
+			});
+		});
+		
+		//update list of users that have banned current user, user may not sent them messages
+		socket.on('clientSetBannedByList', function (usersList) {
+            sendLog('clientSetBannedByList() called');
+            $("p#banned_by_user_list").empty();
+			//usersList is array of json objects
+			usersList.forEach(function(user_id) {
+				if(__users[user_id] !== undefined) {
+					//build read only list
+					$("p#banned_by_user_list").append("<br />" + user_id + ': ' + __users[user_id]);
+					__usersBannedBy.push(userId);
+          		}
+			});
+		});
+		
+		//check closed
+		socket.on('clientChatClosed', function (user_id) {
+            sendLog('clientChatClosed called');
+            $("#chatRoom_"+user_id).empty();
+			$("#chatRoom_"+user_id).append('Chat is closed  by ' + __users[user_id]);
+	    });
+		
+		//user close ALL pages with chat
+		socket.on('clientChatLeft', function (user_id) {
+            sendLog('clientChatLeft() called');
+            $("#chatRoom_"+user_id).empty();
+			$("#chatRoom_"+user_id).append(__users[user_id] + ' left chat');
+	    });
+		
+		//user is banned
+		socket.on('clientChatBanned', function (user_id) {
+            sendLog('clientChatBanned() called');
+            $("#chatRoom_"+user_id).empty();
+			$("#chatRoom_"+user_id).append('Chat is banned by ' + __users[user_id]);
+	    });
+		
+		//send logging data to server
+        function sendLog(msg) {
+            if(__debugMode == 1) {
+                socket.emit('serverLogEvent', msg);
+            } else {
+                //some other logging?
+            }
+        }
+
+		//send message to user
+		function sendMessage(user_id) {
+            sendLog('sendMessage() called');
+            //just log
+			$("p#log").html('sent message: ' + $("input#msg_"+user_id).val());
+			// send message on inputbox to server
+			socket.emit('serverSendMessage', {message: $("input#msg_"+user_id).val(), user_id: user_id} );
+			// then we empty the text on the input box.
+			$("input#msg_"+user_id).val('');
+		}
+         
+		//close chat
+		function closeChat(user_id) {
+            sendLog('closeChat() called');
+            $("#chatRoom_"+user_id).empty();
+			$("#chatRoom_"+user_id).append('Chat is closed  by ' + __users[user_id]);
+	    	socket.emit('serverChatClosed', user_id);
+		}
+		
+		//ban chat
+		function banChat(user_id) {
+            sendLog('banChat() called');
+            $("#chatRoom_"+user_id).empty();
+			$("#chatRoom_"+user_id).append('Chat is banned by ' + __userName);
+	    	socket.emit('serverChatBanned', user_id);
+		}
+         
+		//create chat block
+		//TODO: remove inline js
+		function addChat(user_id, user_name) {
+        	 $("p#chats").append("<div class='chatRoom' id='chatRoom_" + user_id + "'><b onClick=\"closeChat('"+user_id+"');\">[X]</b> <b onClick=\"banChat('"+user_id+"');\">[ban]</b> Chat with <span>"+user_name+"</span>:<div style='border-top:1px solid #666;' id='chatMessages_"+user_id+"'></div>"+
+        			 				"<input type='text' id='msg_"+user_id+"'></input><button onClick=\"sendMessage('" + user_id + "');\">Send</button>"+
+        			 				"</div>");
+		}
+         
+		//get cookie by name
+		function readCookie(key)
+		{
+		    var result;
+		    return (result = new RegExp('(?:^|; )' + encodeURIComponent(key) + '=([^;]*)').exec(document.cookie)) ? (result[1]) : null;
+		}
+		
+		//set cookie
+		function writeCookie(name, value, days) {
+		    if (days) {
+		        var date = new Date();
+		        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+		        var expires = "; expires=" + date.toGMTString();
+		    }
+		    else var expires = "";
+		    document.cookie = name + "=" + value + expires + "; path=/";
+		}
+      </script>
+   </head>
+   <style>
+	p {
+		border:1px solid #666;
+		padding:3px;
+		margin:3px
+	}
+	span {
+		color:green;
+	}	
+	.chatRoom {
+		border: 1px dashed #666;
+		background: #eee;
+		margin:10px;
+		padding:5px;
+	}
+   </style>
+   <body>
+<h1 id="userName"></h1>   
+<h1>Log</h1>
+      <p id="log"></p>
+<h1>Users</h1>
+      <p id="user_list"></p>
+<h1>Chats</h1>
+      <p id="chats"></p>
+<h1>Banned Users</h1>
+      <p id="banned_user_list"></p>      
+<h1>Banned By Users</h1>
+      <p id="banned_by_user_list"></p>      
+   </body>
+</html>

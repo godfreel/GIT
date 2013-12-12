@@ -1,0 +1,47 @@
+<html>
+   <head>
+      <script src="http://front.pornhub.pmalto.nayul-tubesdev.na.manwin.local:1111/socket.io/socket.io.js"></script>
+      <script src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
+      <script>
+         
+		function getURLParameter(name) {
+			return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null;
+		}
+      
+		var socket = io.connect('http://front.pornhub.pmalto.nayul-tubesdev.na.manwin.local:1111');
+
+        $(document).ready(function(){
+            socket.emit('serverAddDebugListener');
+        });
+
+        //user is banned
+        socket.on('debugLog', function (message) {
+            $(".messages").before("<p class='"+message.user_name+" messages data type"+message.type+"'>" + message.body + "</p>");
+        });
+
+        function filter() {
+            $('p').not('.test').hide();
+        }
+
+      </script>
+   </head>
+   <style>
+	p {
+		border:1px solid #666;
+		padding:3px;
+		margin:3px
+	}
+    .type1{color:green}
+    .type2{color:orangered}
+    .type3{color:blue}
+    .type4{color:black}
+    .type5{color:red}
+
+   </style>
+   <body>
+        <h1>Log // <b onClick="$('.data').remove();">Clear</b> // <b onClick="filter();">Filter</b></h1>
+        <div id="debug">
+            <p class="messages">empty</p>
+        </div>
+   </body>
+</html>
